@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Mars CALCULATOR</title>
+  <meta name="description" content="Simple, fast calculator — add, subtract, multiply, divide." />
+  <style>
+    :root{--bg:#0f1720;--card:#0b1220;--accent:#4f46e5;--text:#e6eef8}
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,#071025,#0f1720);font-family:Inter,Segoe UI,Roboto,Arial;color:var(--text);padding:24px}
+    .card{width:360px;background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(0,0,0,0.06));border-radius:14px;box-shadow:0 10px 30px rgba(2,6,23,0.6);overflow:hidden}
+    .display{padding:18px 16px;background:rgba(0,0,0,0.16);font-size:28px;text-align:right;min-height:56px;word-wrap:break-word}
+    .keys{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:12px;background:linear-gradient(180deg,rgba(255,255,255,0.01),transparent)}
+    button{padding:14px;border-radius:10px;border:0;background:#07142a;color:var(--text);font-size:18px;cursor:pointer;box-shadow:inset 0 -4px 0 rgba(0,0,0,0.25)}
+    button.operator{background:linear-gradient(180deg,#1f2937,#111827);color:#fff}
+    button.wide{grid-column:span 2}
+    .muted{opacity:.75;font-size:12px;padding:8px 12px}
+    @media (max-width:420px){.card{width:100%}}
+  </style>
+</head>
+<body>
+  <div class="card" role="application" aria-label="Calculator">
+    <div id="display" class="display" aria-live="polite">0</div>
+    <div class="keys" id="keys">
+      <button data-action="clear">C</button>
+      <button data-action="del">DEL</button>
+      <button data-action="op" class="operator">÷</button>
+      <button data-action="op" class="operator">×</button>
+
+      <button data-num="7">7</button>
+      <button data-num="8">8</button>
+      <button data-num="9">9</button>
+      <button data-action="op" class="operator">−</button>
+
+      <button data-num="4">4</button>
+      <button data-num="5">5</button>
+      <button data-num="6">6</button>
+      <button data-action="op" class="operator">+</button>
+
+      <button data-num="1">1</button>
+      <button data-num="2">2</button>
+      <button data-num="3">3</button>
+      <button data-action="equal" class="operator">=</button>
+
+      <button data-num="0" class="wide">0</button>
+      <button data-action="decimal">.</button>
+      <button data-action="percent">%</button>
+    </div>
+    <div class="muted" style="text-align:center">Tip: you can also type on the keyboard (numbers, + - * / Enter, Backspace).</div>
+  </div>
+
+  <script>
+    // Simple safe-eval calculator (client-side)
+    const display = document.getElementById('display');
+    const keys = document.getElementById('keys');
+    let expr = '';
+
+    function render() {
+      display.textContent = expr || '0';
+    }
+
+    function sanitizeForEval(s) {
+      // convert visible symbols to JS operators, keep only allowed chars
+      const mapped = s.replace(/×/g,'*').replace(/÷/g,'/').replace(/−/g,'-').replace(/%/g,'/100');
+      // allow digits, operators, parentheses, decimal point, spaces
+      if (!/^[0-9+\-*/().\s%]+$/.test(mapped + '')) return null;
+      return mapped;
+    }
+
+    function calculate() {
+      const safe = sanitizeForEval(expr);
+      if (!safe) { display.textContent = 'Error'; expr=''; return; }
+      try {
+        // Use Function to evaluate expression safely-ish (client only)
+        const result = Function('"use strict"; return (' + safe + ')')();
+        expr = (result === Infinity || isNaN(result)) ? '' : String(result);
+        render();
+      } catch {
+        display.textContent = 'Error';
+        expr = '';
+      }
+    }
+
+    keys.addEventListener('click', e => {
+      if (!e.target.matches('button')) return;
+      const num = e.target.dataset.num;
+      const action = e.target.dataset.action;
+      const txt = e.target.textContent.trim();
+
+      if (num !== undefined) { expr += num; render(); return; }
+      if (action === 'decimal') {
+        // prevent multiple decimals in current number
+        const last = expr.split(/[+\-×÷−*/]/).pop();
+        if (!last.includes('.')) expr += '.';
+        render(); return;
+      }
+      if (action === 'op') {
+        // replace last operator if user presses operator twice
+        if (expr === '' && txt !== '−' && txt !== '-') return; // no leading +/*/
+        if (/[+\-×÷−*/]$/.test(expr)) expr = expr.slice(0,-1) + txt;
+        else expr += txt;
+        render(); return;
+      }
+      if (action === 'clear') { expr=''; render(); return; }
+      if (action === 'del') { expr = expr.slice(0,-1); render(); return; }
+      if (action === 'percent') {
+        // convert last number to percent: e.g. 50% -> 0.5
+        const parts = expr.split(/([+\-×÷−*/])/);
+        const last = parts.pop();
+        if (last && !/[+\-×÷−*/]/.test(last)) {
+          parts.push(String(parseFloat(last)/100 || 0));
+          expr = parts.join('');
+          render();
+        }
+        return;
+      }
+      if (action === 'equal') { calculate(); return; }
+    });
+
+    // keyboard support
+    document.addEventListener('keydown', e => {
+      if (/^\d$/.test(e.key)) { expr += e.key; render(); return; }
+      if (e.key === 'Enter') { e.preventDefault(); calculate(); return; }
+      if (e.key === 'Backspace') { expr = expr.slice(0,-1); render(); return; }
+      if (['+','-','*','/','(',')','.'].includes(e.key)) { expr += e.key; render(); return; }
+    });
+
+    render();
+  </script>
+</body>
+</html>
